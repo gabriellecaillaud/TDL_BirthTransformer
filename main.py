@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
 import itertools
-import logging
 import random
 import json
 import math
@@ -18,8 +17,7 @@ from pathlib import Path
 
 from dataset import DataArgs, Dataset, iterate_batches
 from basic_model import ModelArgs, Transformer
-
-logging.getLogger().setLevel(logging.INFO)
+from datetime import datetime
 
 
 @dataclass
@@ -51,13 +49,16 @@ class TrainerArgs:
 
 
 if __name__ == '__main__':
+    
+    date = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    print(f"Using date {date} for saving models and files")
     args = TrainerArgs(
            optim_args=OptimArgs(),
            data_args=DataArgs(),
            model_args=ModelArgs()
         )
     cfg = OmegaConf.merge(OmegaConf.structured(args), OmegaConf.from_cli())
-
+    print(cfg)
     ds = Dataset(cfg.data_args, train_test=None, bigram_outs=cfg.bigram_outs_train)
     ds_test = Dataset(cfg.data_args, train_test=None, bigram_outs=cfg.bigram_outs_test)
     ds_test.idxs = ds.idxs
@@ -263,13 +264,13 @@ if __name__ == '__main__':
                     pred_t = model(x_t)
                 acc_end_test = (pred_t[:,-el:].argmax(-1)[outs_t[:,-el:] >= 2] == y_t[:,-el:][outs_t[:,-el:] >= 2]).float().mean().item()
 
-                logging.info(
+                print(
                         f'''{i} ({dt_data:.2f}, {dt:.2f}, {t - t0:.2f}): loss: {loss.item():.4f} ({loss_bigram:.4f}, {loss_head:.4f}), \
 acc: {acc_tot:.4f} ({acc_end:.4f} / {acc_end_test:.4f}) \
 probes: {score_start_acc:.4f} / {score2_acc:.4f} / {score_cond_acc:.4f} / {pred_attended_acc:.4f} ({repeat_frac:.4f})'''
 )
                 if cfg.log_probes:
-                    logging.info(f'memory probes wk0: {wk0_acc:.4f} ({wk0_64_acc:.4f}), wk1: {wk1_acc:.4f}, wo1: {wo1_acc:.4f}, ff1: {ff1_loss:.4f}')
+                    print(f'memory probes wk0: {wk0_acc:.4f} ({wk0_64_acc:.4f}), wk1: {wk1_acc:.4f}, wo1: {wo1_acc:.4f}, ff1: {ff1_loss:.4f}')
 
                 curr_res = {'iter': i, 'loss': loss.item(), 'loss_bigram': loss_bigram, 'loss_head': loss_head,
                             'acc_tot': acc_tot, 'acc_start': acc_start, 'acc_end': acc_end, 'acc_end_test': acc_end_test,
@@ -294,12 +295,14 @@ probes: {score_start_acc:.4f} / {score2_acc:.4f} / {score_cond_acc:.4f} / {pred_
                             'wv': [layer.attention.wv.weight.grad.norm().item() for layer in model.layers if layer.attention.wv.weight.requires_grad],
                             'wo': [layer.attention.wo.weight.grad.norm().item() for layer in model.layers if layer.attention.wo.weight.requires_grad],
                             }
-                    logging.info(repr(param_norms))
-                    logging.info(repr(grad_norms))
+                    print(repr(param_norms))
+                    print(repr(grad_norms))
 
                 if cfg.save_dir is not None:
                     print(json.dumps(curr_res), file=outfile, flush=True)
                 res.append(curr_res)
+                with open(f"logs/{date}_res.json", "w") as file:
+	                json.dump(res, file)
             else:
-                logging.info(f'{i} ({dt_data:.2f}, {dt:.2f}, {t - t0:.2f}): {loss.item():.4f}')
+                print(f'{i} ({dt_data:.2f}, {dt:.2f}, {t - t0:.2f}): {loss.item():.4f}')
                 res.append({'loss': loss.item()})
