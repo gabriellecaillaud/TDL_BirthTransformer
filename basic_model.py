@@ -6,6 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from typing import Optional, Tuple
 
+torch.manual_seed(0)
 
 @dataclass
 class ModelArgs:
@@ -23,6 +24,7 @@ class ModelArgs:
     sqrtd_embeddings: bool = False
     no_sqrtd: bool = False
     sin_cos: bool = False
+    add_noise_to_embeddings: bool = False
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
@@ -187,6 +189,7 @@ class Transformer(nn.Module):
         self.dim = args.dim
         self.use_rope = args.use_rope
         self.sin_cos = args.sin_cos
+        self.add_noise_to_embeddings = args.add_noise_to_embeddings
 
         # embeddings
         self.tok_embeddings = nn.Embedding(args.vocab_size, args.dim)
@@ -254,6 +257,9 @@ class Transformer(nn.Module):
         h = self.tok_embeddings(tokens)
         if not self.use_rope:
             h = h + self.pe.unsqueeze(0)
+
+        if self.add_noise_to_embeddings:
+            h = h + h.std() * torch.randn_like(h)
 
         if return_layer == 0:
             return h
